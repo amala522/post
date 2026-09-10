@@ -20,8 +20,8 @@ POSTING_KEY = os.getenv("HIVE_POSTING_KEY")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
 
-MAIN_TAG = "hive-120022"
-TAGS = ["hive-120022", "hive", "crypto", "trading", "technicalanalysis"]
+MAIN_TAG = "finance"
+TAGS = ["finance", "hive", "crypto", "trading", "technicalanalysis"]
 CHART_FILENAME = "hive_chart.png"
 
 def get_hive_data():
