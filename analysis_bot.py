@@ -21,10 +21,10 @@ MAIN_TAG = "hive-120022" # Crypto News topluluğu
 TAGS = ["hive-120022", "hive", "crypto", "trading", "technicalanalysis"]
 
 def get_hive_data():
-    """CoinGecko'dan HIVE/USD 1 saatlik son 2 gün (48 saat) verisini çeker"""
-    # days=2, 48 saatlik veri verir. Bu, SMA20 ve RSI14 hesaplamak için yeterlidir.
+    """CoinGecko'dan HIVE/USD saatlik verisini çeker (RSI/SMA için 7 gün idealdir)"""
+    # days parametresi sadece 1, 7, 14, 30, 90, 180, 365 olabilir.
     url = "https://api.coingecko.com/api/v3/coins/hive/ohlc"
-    params = {"vs_currency": "usd", "days": 2}
+    params = {"vs_currency": "usd", "days": 7}
     
     try:
         response = requests.get(url, params=params, timeout=10).json()
@@ -60,18 +60,18 @@ def calculate_indicators(df):
 
 def generate_chart(df):
     """Son 24 saati (24 mum) koyu temalı grafik olarak çizer"""
-    # Sadece son 24 saati al
+    # Hesaplamalar 7 günlük veriyle yapıldı, ama grafikte sadece son 24 saati göster
     plot_df = df.tail(24)
     
     if plot_df.empty:
         print("❌ Çizilecek veri yok!")
         return False
     
-    # Koyu tema ayarları (Hacim çubukları olmadan, sadece mum ve çizgiler)
+    # Koyu tema ayarları
     mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit')
     s = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#2d2d2d', facecolor='#121212', edgecolor='#121212')
     
-    # Grafiği kaydet (volume=False)
+    # Grafiği kaydet (volume=False çünkü CoinGecko OHLC hacim vermez)
     mpf.plot(plot_df, type='candle', style=s, volume=False, 
              title='HIVE/USD 24H Chart', 
              savefig='hive_chart.png', figsize=(10, 6))
@@ -184,6 +184,7 @@ def main():
         print("❌ Grafik oluşturulamadı, bot durduruldu.")
         return
     
+    # Analiz ve metin için son 24 saatin verilerini al
     current_price = df['close'].iloc[-1]
     rsi = df['RSI'].iloc[-1]
     sma = df['SMA20'].iloc[-1]
