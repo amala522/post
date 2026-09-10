@@ -1,0 +1,6 @@
+beem
+requests
+feedparser
+pandas
+mplfinance
+ta
