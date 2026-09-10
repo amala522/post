@@ -59,7 +59,7 @@ def generate_chart(df):
     plot_df = df.tail(24)
     
     if plot_df.empty:
-        print(" Çizilecek veri yok!")
+        print("❌ Çizilecek veri yok!")
         return False
     
     mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit')
@@ -72,24 +72,24 @@ def generate_chart(df):
     return True
 
 def upload_image():
-    """Grafiği catbox.moe sunucusuna yükler (daha güvenilir)"""
+    """Grafiği PostImages.org'a yükler (API key gerektirmez, çok stabildir)"""
     try:
-        url = "https://catbox.moe/user/api.php"
+        url = "https://postimages.org/json"
         with open('hive_chart.png', 'rb') as f:
-            data = {
-                'reqtype': 'fileupload',
-                'fileToUpload': ('hive_chart.png', f, 'image/png')
-            }
-            response = requests.post(url, data=data, timeout=10)
+            files = {'file': f}
+            response = requests.post(url, files=files, timeout=15)
+            
         if response.status_code == 200:
-            image_url = response.text.strip()
-            print(f"✅ Resim yüklendi: {image_url}")
-            return image_url
-        else:
-            print(f"❌ Resim yükleme hatası: {response.status_code}")
-            return None
+            data = response.json()
+            image_url = data.get('url')
+            if image_url:
+                print(f"✅ Resim başarıyla yüklendi: {image_url}")
+                return image_url
+                
+        print(f"❌ Resim yükleme hatası: {response.status_code}")
+        return None
     except Exception as e:
-        print(f"❌ Resim yükleme hatası: {e}")
+        print(f"❌ Resim yükleme sırasında beklenmedik hata: {e}")
         return None
 
 def generate_text(current_price, rsi, sma, support, resistance, image_url):
@@ -176,7 +176,7 @@ def main():
     print("📊 Calculating Indicators...")
     df = calculate_indicators(df)
     
-    print(" Generating Chart...")
+    print("📈 Generating Chart...")
     chart_success = generate_chart(df)
     
     if not chart_success:
