@@ -22,7 +22,7 @@ GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
 
 MAIN_TAG = "finance"
 TAGS = ["finance", "hive", "crypto", "trading", "technicalanalysis"]
-CHART_FILENAME = "hive_chart.png"
+CHART_FILENAME = f"hive_chart_{time.strftime('%Y-%m-%d')}.png" 
 
 def get_hive_data():
     url = "https://api.coingecko.com/api/v3/coins/hive/ohlc"
