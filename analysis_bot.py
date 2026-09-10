@@ -17,29 +17,48 @@ HIVE_NODE = "https://api.hive.blog"
 USERNAME = os.getenv("HIVE_USERNAME")
 POSTING_KEY = os.getenv("HIVE_POSTING_KEY")
 
-MAIN_TAG = "hive-120022" # Crypto News topluluğu (daha fazla kazanç için)
+MAIN_TAG = "hive-120022" # Crypto News topluluğu
 TAGS = ["hive-120022", "hive", "crypto", "trading", "technicalanalysis"]
 
 def get_hive_data():
     """Binance'den HIVE/USDT 1 saatlik son 50 mum verisini çeker"""
     url = "https://api.binance.com/api/v3/klines"
     params = {"symbol": "HIVEUSDT", "interval": "1h", "limit": 50}
-    response = requests.get(url, params=params).json()
     
-    df = pd.DataFrame(response, columns=[
-        'time', 'open', 'high', 'low', 'close', 'volume', 
-        'close_time', 'quote_volume', 'trades', 'taker_buy_base', 
-        'taker_buy_quote', 'ignore'
-    ])
-    
-    # Veriyi sayısal formata çevir
-    for col in ['open', 'high', 'low', 'close', 'volume']:
-        df[col] = df[col].astype(float)
+    try:
+        response = requests.get(url, params=params, timeout=10).json()
         
-    df['time'] = pd.to_datetime(df['time'], unit='ms')
-    df.set_index('time', inplace=True)
-    
-    return df
+        # Binance bazen hata durumunda sözlük (dict) döndürür
+        if isinstance(response, dict):
+            print(f"❌ Binance API Hatası: {response}")
+            return None
+            
+        if not response or len(response) == 0:
+            print("❌ Binance'den veri alınamadı (boş yanıt).")
+            return None
+            
+        df = pd.DataFrame(response, columns=[
+            'time', 'open', 'high', 'low', 'close', 'volume', 
+            'close_time', 'quote_volume', 'trades', 'taker_buy_base', 
+            'taker_buy_quote', 'ignore'
+        ])
+        
+        # Veriyi sayısal formata çevir
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+        df['time'] = pd.to_datetime(df['time'], unit='ms')
+        df.set_index('time', inplace=True)
+        
+        # Boş veya hatalı satırları temizle
+        df.dropna(inplace=True)
+        
+        print(f"✅ {len(df)} satır veri başarıyla çekildi.")
+        return df
+        
+    except Exception as e:
+        print(f"❌ Veri çekme hatası: {e}")
+        return None
 
 def calculate_indicators(df):
     """RSI ve SMA hesaplar"""
@@ -52,6 +71,10 @@ def generate_chart(df):
     # Sadece son 24 saati al
     plot_df = df.tail(24)
     
+    if plot_df.empty:
+        print("❌ Çizilecek veri yok!")
+        return False
+    
     # Koyu tema ayarları
     mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit', volume='inherit')
     s = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#2d2d2d', facecolor='#121212', edgecolor='#121212')
@@ -61,21 +84,31 @@ def generate_chart(df):
              title='HIVE/USDT 24H Chart', 
              savefig='hive_chart.png', figsize=(10, 6))
     print("✅ Grafik çizildi: hive_chart.png")
+    return True
 
 def upload_image():
     """Grafiği ücretsiz 0x0.st sunucusuna yükler"""
-    url = "https://0x0.st"
-    with open('hive_chart.png', 'rb') as f:
-        response = requests.post(url, files={'file': f})
-    if response.status_code == 200:
-        return response.text.strip()
-    return None
+    try:
+        url = "https://0x0.st"
+        with open('hive_chart.png', 'rb') as f:
+            response = requests.post(url, files={'file': f}, timeout=10)
+        if response.status_code == 200:
+            return response.text.strip()
+        else:
+            print(f"❌ Resim yükleme hatası: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print(f"❌ Resim yükleme hatası: {e}")
+        return None
 
-def generate_text(current_price, rsi, sma, support, resistance):
-    """Blogger uslubu, kısa ve net metin (Yasaklı işaretler yok!)"""
+def generate_text(current_price, rsi, sma, support, resistance, image_url):
+    """Blogger uslubu, kısa ve net metin"""
     
     rsi_status = "oversold" if rsi < 30 else ("overbought" if rsi > 70 else "neutral")
     trend_status = "bullish" if current_price > sma else "bearish"
+    
+    # Resim URL'si yoksa uyarı metni ekle
+    image_md = f"![HIVE 24h Chart]({image_url})" if image_url else "*(Chart image upload failed)*"
     
     text = f"""# HIVE/USDT 24 Hour Market Update
 
@@ -83,7 +116,7 @@ Hello Hive friends.
 
 Here is the daily technical look at HIVE. I pulled the 1-hour chart data from Binance to see what the buyers and sellers are doing today.
 
-![HIVE 24h Chart]({upload_image()})
+{image_md}
 
 ### Current Price Action
 HIVE is trading at ${current_price:.4f}. The 24-hour trend shows clear momentum in the market.
@@ -132,7 +165,7 @@ def publish_post(title, body):
             print(f"⚠️ Blockchain yanıtı alındı.")
             
     except Exception as e:
-        print(f" Publishing Error: {e}")
+        print(f"❌ Publishing Error: {e}")
 
 def main():
     print("=" * 60)
@@ -140,15 +173,25 @@ def main():
     print("=" * 60)
     
     if not USERNAME or not POSTING_KEY:
-        print("❌ ERROR: Secrets missing!")
+        print("❌ ERROR: HIVE_USERNAME or HIVE_POSTING_KEY is missing in Secrets!")
         return
     
     print("📡 Fetching Binance Data...")
     df = get_hive_data()
+    
+    if df is None or df.empty:
+        print("❌ Veri alınamadı, bot durduruldu.")
+        return
+        
+    print("📊 Calculating Indicators...")
     df = calculate_indicators(df)
     
-    print("📊 Generating Chart...")
-    generate_chart(df)
+    print("📈 Generating Chart...")
+    chart_success = generate_chart(df)
+    
+    if not chart_success:
+        print("❌ Grafik oluşturulamadı, bot durduruldu.")
+        return
     
     current_price = df['close'].iloc[-1]
     rsi = df['RSI'].iloc[-1]
@@ -158,11 +201,16 @@ def main():
     
     print(f"   Price: {current_price}, RSI: {rsi:.2f}, SMA: {sma:.4f}")
     
-    title, body = generate_text(current_price, rsi, sma, support, resistance)
+    print("📤 Uploading Image...")
+    image_url = upload_image()
+    
+    print("📝 Generating Text...")
+    title, body = generate_text(current_price, rsi, sma, support, resistance, image_url)
     
     print("🚀 Publishing...")
     publish_post(title, body)
     print("=" * 60)
+    print("✅ Bot finished successfully!")
 
 if __name__ == "__main__":
     main()
