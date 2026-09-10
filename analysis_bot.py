@@ -3,6 +3,7 @@ print("🚀 DEBUG: ANALIZ BOTU BASLADI!")
 import os
 import time
 import json
+import base64
 import requests
 import pandas as pd
 import mplfinance as mpf
@@ -16,48 +17,42 @@ from beem.transactionbuilder import TransactionBuilder
 HIVE_NODE = "https://api.hive.blog"
 USERNAME = os.getenv("HIVE_USERNAME")
 POSTING_KEY = os.getenv("HIVE_POSTING_KEY")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
 
-MAIN_TAG = "hive-120022" # Crypto News topluluğu
+MAIN_TAG = "hive-120022"
 TAGS = ["hive-120022", "hive", "crypto", "trading", "technicalanalysis"]
+CHART_FILENAME = "hive_chart.png"
 
 def get_hive_data():
-    """CoinGecko'dan HIVE/USD saatlik verisini çeker (RSI/SMA için 7 gün idealdir)"""
     url = "https://api.coingecko.com/api/v3/coins/hive/ohlc"
     params = {"vs_currency": "usd", "days": 7}
     
     try:
         response = requests.get(url, params=params, timeout=10).json()
-        
         if isinstance(response, dict) and "error" in response:
             print(f"❌ CoinGecko API Hatası: {response['error']}")
             return None
-            
         if not response or len(response) < 20:
             print("❌ CoinGecko'dan yeterli veri alınamadı.")
             return None
             
         df = pd.DataFrame(response, columns=['time', 'open', 'high', 'low', 'close'])
-        
         df['time'] = pd.to_datetime(df['time'], unit='ms')
         df.set_index('time', inplace=True)
-        
-        print(f"✅ {len(df)} satır veri başarıyla çekildi (CoinGecko).")
+        print(f"✅ {len(df)} satır veri başarıyla çekildi.")
         return df
-        
     except Exception as e:
         print(f"❌ Veri çekme hatası: {e}")
         return None
 
 def calculate_indicators(df):
-    """RSI ve SMA hesaplar"""
     df['RSI'] = RSIIndicator(close=df['close'], window=14).rsi()
     df['SMA20'] = SMAIndicator(close=df['close'], window=20).sma_indicator()
     return df
 
 def generate_chart(df):
-    """Son 24 saati (24 mum) koyu temalı grafik olarak çizer"""
     plot_df = df.tail(24)
-    
     if plot_df.empty:
         print("❌ Çizilecek veri yok!")
         return False
@@ -67,34 +62,52 @@ def generate_chart(df):
     
     mpf.plot(plot_df, type='candle', style=s, volume=False, 
              title='HIVE/USD 24H Chart', 
-             savefig='hive_chart.png', figsize=(10, 6))
-    print("✅ Grafik çizildi: hive_chart.png")
+             savefig=CHART_FILENAME, figsize=(10, 6))
+    print(f"✅ Grafik çizildi: {CHART_FILENAME}")
     return True
 
-def upload_image():
-    """Grafiği PostImages.org'a yükler (API key gerektirmez, çok stabildir)"""
-    try:
-        url = "https://postimages.org/json"
-        with open('hive_chart.png', 'rb') as f:
-            files = {'file': f}
-            response = requests.post(url, files=files, timeout=15)
-            
-        if response.status_code == 200:
-            data = response.json()
-            image_url = data.get('url')
-            if image_url:
-                print(f"✅ Resim başarıyla yüklendi: {image_url}")
-                return image_url
-                
-        print(f"❌ Resim yükleme hatası: {response.status_code}")
+def upload_to_github():
+    """Grafiği doğrudan kendi GitHub repona yükler (100% Stabil)"""
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        print("❌ GitHub yükleme için TOKEN veya REPO bilgisi eksik.")
         return None
+        
+    try:
+        with open(CHART_FILENAME, "rb") as f:
+            content = base64.b64encode(f.read()).decode('utf-8')
+            
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{CHART_FILENAME}"
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        
+        # Dosya daha önce var mı kontrol et (güncelleme için sha gerekir)
+        check_response = requests.get(url, headers=headers)
+        data = {
+            "message": "chore: update daily analysis chart",
+            "content": content,
+            "branch": "main" # Eğer default branch'in 'master' ise burayı 'master' yap
+        }
+        
+        if check_response.status_code == 200:
+            data["sha"] = check_response.json()["sha"]
+            
+        put_response = requests.put(url, json=data, headers=headers)
+        
+        if put_response.status_code in [200, 201]:
+            image_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{CHART_FILENAME}"
+            print(f"✅ Resim GitHub'a yüklendi: {image_url}")
+            return image_url
+        else:
+            print(f"❌ GitHub API Hatası: {put_response.status_code} - {put_response.text}")
+            return None
+            
     except Exception as e:
-        print(f"❌ Resim yükleme sırasında beklenmedik hata: {e}")
+        print(f"❌ Resim yükleme hatası: {e}")
         return None
 
 def generate_text(current_price, rsi, sma, support, resistance, image_url):
-    """Blogger uslubu, kısa ve net metin (Yasaklı işaretler yok)"""
-    
     rsi_status = "oversold" if rsi < 30 else ("overbought" if rsi > 70 else "neutral")
     trend_status = "bullish" if current_price > sma else "bearish"
     
@@ -163,12 +176,11 @@ def main():
     print("=" * 60)
     
     if not USERNAME or not POSTING_KEY:
-        print("❌ ERROR: HIVE_USERNAME or HIVE_POSTING_KEY is missing in Secrets!")
+        print("❌ ERROR: HIVE_USERNAME or HIVE_POSTING_KEY is missing!")
         return
     
     print("📡 Fetching CoinGecko Data...")
     df = get_hive_data()
-    
     if df is None or df.empty:
         print("❌ Veri alınamadı, bot durduruldu.")
         return
@@ -177,9 +189,7 @@ def main():
     df = calculate_indicators(df)
     
     print("📈 Generating Chart...")
-    chart_success = generate_chart(df)
-    
-    if not chart_success:
+    if not generate_chart(df):
         print("❌ Grafik oluşturulamadı, bot durduruldu.")
         return
     
@@ -191,8 +201,8 @@ def main():
     
     print(f"   Price: {current_price}, RSI: {rsi:.2f}, SMA: {sma:.4f}")
     
-    print("📤 Uploading Image...")
-    image_url = upload_image()
+    print("📤 Uploading Image to GitHub...")
+    image_url = upload_to_github()
     
     print("📝 Generating Text...")
     title, body = generate_text(current_price, rsi, sma, support, resistance, image_url)
