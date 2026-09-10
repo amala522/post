@@ -22,14 +22,12 @@ TAGS = ["hive-120022", "hive", "crypto", "trading", "technicalanalysis"]
 
 def get_hive_data():
     """CoinGecko'dan HIVE/USD saatlik verisini çeker (RSI/SMA için 7 gün idealdir)"""
-    # days parametresi sadece 1, 7, 14, 30, 90, 180, 365 olabilir.
     url = "https://api.coingecko.com/api/v3/coins/hive/ohlc"
     params = {"vs_currency": "usd", "days": 7}
     
     try:
         response = requests.get(url, params=params, timeout=10).json()
         
-        # CoinGecko hata döndürürse kontrol et
         if isinstance(response, dict) and "error" in response:
             print(f"❌ CoinGecko API Hatası: {response['error']}")
             return None
@@ -38,10 +36,8 @@ def get_hive_data():
             print("❌ CoinGecko'dan yeterli veri alınamadı.")
             return None
             
-        # CoinGecko OHLC formatı: [timestamp_ms, open, high, low, close]
         df = pd.DataFrame(response, columns=['time', 'open', 'high', 'low', 'close'])
         
-        # Zamanı datetime'a çevir ve indeks yap
         df['time'] = pd.to_datetime(df['time'], unit='ms')
         df.set_index('time', inplace=True)
         
@@ -60,18 +56,15 @@ def calculate_indicators(df):
 
 def generate_chart(df):
     """Son 24 saati (24 mum) koyu temalı grafik olarak çizer"""
-    # Hesaplamalar 7 günlük veriyle yapıldı, ama grafikte sadece son 24 saati göster
     plot_df = df.tail(24)
     
     if plot_df.empty:
-        print("❌ Çizilecek veri yok!")
+        print(" Çizilecek veri yok!")
         return False
     
-    # Koyu tema ayarları
     mc = mpf.make_marketcolors(up='#00ff00', down='#ff0000', edge='inherit', wick='inherit')
     s = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#2d2d2d', facecolor='#121212', edgecolor='#121212')
     
-    # Grafiği kaydet (volume=False çünkü CoinGecko OHLC hacim vermez)
     mpf.plot(plot_df, type='candle', style=s, volume=False, 
              title='HIVE/USD 24H Chart', 
              savefig='hive_chart.png', figsize=(10, 6))
@@ -79,13 +72,19 @@ def generate_chart(df):
     return True
 
 def upload_image():
-    """Grafiği ücretsiz 0x0.st sunucusuna yükler"""
+    """Grafiği catbox.moe sunucusuna yükler (daha güvenilir)"""
     try:
-        url = "https://0x0.st"
+        url = "https://catbox.moe/user/api.php"
         with open('hive_chart.png', 'rb') as f:
-            response = requests.post(url, files={'file': f}, timeout=10)
+            data = {
+                'reqtype': 'fileupload',
+                'fileToUpload': ('hive_chart.png', f, 'image/png')
+            }
+            response = requests.post(url, data=data, timeout=10)
         if response.status_code == 200:
-            return response.text.strip()
+            image_url = response.text.strip()
+            print(f"✅ Resim yüklendi: {image_url}")
+            return image_url
         else:
             print(f"❌ Resim yükleme hatası: {response.status_code}")
             return None
@@ -177,14 +176,13 @@ def main():
     print("📊 Calculating Indicators...")
     df = calculate_indicators(df)
     
-    print("📈 Generating Chart...")
+    print(" Generating Chart...")
     chart_success = generate_chart(df)
     
     if not chart_success:
         print("❌ Grafik oluşturulamadı, bot durduruldu.")
         return
     
-    # Analiz ve metin için son 24 saatin verilerini al
     current_price = df['close'].iloc[-1]
     rsi = df['RSI'].iloc[-1]
     sma = df['SMA20'].iloc[-1]
