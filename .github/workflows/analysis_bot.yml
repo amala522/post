@@ -23,4 +23,6 @@ jobs:
         env:
           HIVE_USERNAME: ${{ secrets.HIVE_USERNAME }}
           HIVE_POSTING_KEY: ${{ secrets.HIVE_POSTING_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}       # EKLENDİ
+          GITHUB_REPOSITORY: ${{ github.repository }}     # EKLENDI
         run: python analysis_bot.py
