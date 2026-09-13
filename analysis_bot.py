@@ -21,7 +21,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
 
 MAIN_TAG = "finance"
-TAGS = ["finance", "hive", "crypto", "trading", "technicalanalysis"]
+TAGS = ["finance", "hive", "crypto", "trading", "pob", "waiv"]
 CHART_FILENAME = f"hive_chart_{time.strftime('%Y-%m-%d')}.png" 
 
 def get_hive_data():
