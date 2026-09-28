@@ -113,9 +113,7 @@ def generate_text(current_price, rsi, sma, support, resistance, image_url):
     
     image_md = f"![HIVE 24h Chart]({image_url})" if image_url else "*(Chart image upload failed)*"
     
-    text = f"""# HIVE/USD 24 Hour Market Update
-
-Hello Hive friends.
+    text = f"""Hello Hive friends.
 
 Here is the daily technical look at HIVE. I pulled the 1-hour chart data from CoinGecko to see what the buyers and sellers are doing today.
 
@@ -132,10 +130,7 @@ The 20-period Simple Moving Average is at ${sma:.4f}. Price is currently {trend_
 ### Key Levels to Watch
 Support is sitting around ${support:.4f}. Resistance is near ${resistance:.4f}. 
 
-What do you think about the chart today? Let me know in the comments.
-
-#hive #crypto #trading #technicalanalysis
-"""
+What do you think about the chart today? Let me know in the comments."""
     return f"HIVE/USD 24H Technical Analysis - {time.strftime('%Y-%m-%d')}", text
 
 def publish_post(title, body):
