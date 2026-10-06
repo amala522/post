@@ -137,7 +137,7 @@ def publish_post(title, body):
     try:
         hive = Hive(node=HIVE_NODE, nobroadcast=False)
         permlink = f"hive-analysis-{time.strftime('%Y-%m-%d')}"
-        json_metadata = json.dumps({"tags": TAGS, "app": "hive-analysis-bot/1.0"})
+        json_metadata = json.dumps({"tags": TAGS, "app": "hiveblog/0.1"})
         
         print("📡 Publishing to Hive...")
         
